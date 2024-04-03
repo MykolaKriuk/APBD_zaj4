@@ -2,8 +2,34 @@
 
 namespace LegacyApp
 {
+    public interface IClientRepository
+    {
+        Client GetById(int clientId);
+    }
+
+    public interface IUserCreditService
+    {
+        int GetCreditLimit(string lastName, DateTime dateOfBirth);
+    }
+    
     public class UserService
     {
+        private IClientRepository _clientRepository;
+        private IUserCreditService _userCreditService;
+
+        [Obsolete]
+        public UserService()
+        {
+            _clientRepository = new ClientRepository();
+            _userCreditService = new UserCreditService();
+        }
+
+        public UserService(IClientRepository clientRepository, IUserCreditService userCreditService)
+        {
+            _clientRepository = clientRepository;
+            _userCreditService = userCreditService;
+        }
+
         public bool AddUser(string firstName, string lastName, string email, DateTime dateOfBirth, int clientId)
         {
             if (IsFirstNameCorrect(firstName) || IsLastNameCorrect(lastName))
@@ -23,8 +49,7 @@ namespace LegacyApp
                 return false;
             }
 
-            var clientRepository = new ClientRepository();
-            var client = clientRepository.GetById(clientId);
+            var client = _clientRepository.GetById(clientId);
 
             var user = new User
             {
@@ -41,24 +66,15 @@ namespace LegacyApp
             }
             else if (client.Type == "ImportantClient")
             {
-                using (var userCreditService = new UserCreditService())
-                {
-                    int creditLimit = userCreditService.GetCreditLimit(user.LastName, user.DateOfBirth);
-                    creditLimit = creditLimit * 2;
-                    user.CreditLimit = creditLimit;
-                }
+                user.CreditLimit = SetCreditLimitByImportanceOfTheClient(user, 2);
             }
             else
             {
                 user.HasCreditLimit = true;
-                using (var userCreditService = new UserCreditService())
-                {
-                    int creditLimit = userCreditService.GetCreditLimit(user.LastName, user.DateOfBirth);
-                    user.CreditLimit = creditLimit;
-                }
+                user.CreditLimit = SetCreditLimitByImportanceOfTheClient(user, 1);
             }
-
-            if (user.HasCreditLimit && user.CreditLimit < 500)
+            
+            if (IsUserCreditLimitLessThen500(user))
             {
                 return false;
             }
@@ -67,18 +83,29 @@ namespace LegacyApp
             return true;
         }
 
+        private int SetCreditLimitByImportanceOfTheClient(User user, int multiplier)
+        {
+            var creditLimit = _userCreditService.GetCreditLimit(user.LastName, user.DateOfBirth);
+            return creditLimit * multiplier;
+        }
+
+        private static bool IsUserCreditLimitLessThen500(User user)
+        {
+            return user.HasCreditLimit && user.CreditLimit < 500;
+        }
+
         private static int CalculateAgeUsingBirthDate(DateTime dateOfBirth)
         {
             var now = DateTime.Now;
             int age = now.Year - dateOfBirth.Year;
-            bool f = now.Month < dateOfBirth.Month; // Change name
-            if (f || (now.Month == dateOfBirth.Month && now.Day < dateOfBirth.Day)) age--;
+            bool isCurrentMonthLessThenBirthMonth = now.Month < dateOfBirth.Month;
+            if (isCurrentMonthLessThenBirthMonth || (now.Month == dateOfBirth.Month && now.Day < dateOfBirth.Day)) age--;
             return age;
         }
 
         private static bool IsEmailCorrect(string email)
         {
-            return !email.Contains("@") && !email.Contains(".");
+            return !email.Contains('@') && !email.Contains('.');
         }
 
         private static bool IsLastNameCorrect(string lastName)
