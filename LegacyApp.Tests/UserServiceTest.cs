@@ -50,7 +50,7 @@ public class UserServiceTest
     }
     
     [Fact]
-    public void Creating_UserService_Object_With_Params()
+    public void Checking_If_Creation_Of_UserService_Object_With_Params_Was_Successful()
     {
         var userService = new UserService(new ClientRepository(), new UserCreditService());
         var addResult = userService.AddUser(
